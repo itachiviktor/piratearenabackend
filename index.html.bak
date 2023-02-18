@@ -64,10 +64,17 @@
             <div class="hero-text">
                 <h1>Beta application available now.</h1>
                 <p>Keep contact with us on Discord.</p>
-                <a href="#" class="btn btn-border">Download</a>
+                <button id="download" class="btn btn-border">Download</button>
             </div><!-- /.hero-text -->
         </div><!-- /.hero-content -->
     </div><!-- /.hero -->
+
+<script type="text/javascript">
+    document.getElementById("download").onclick = function () {
+	window.location.assign("http://www.w3schools.com");
+		
+	};
+</script>
 
     <!-- Bootstrap core JavaScript
     ================================================== -->
