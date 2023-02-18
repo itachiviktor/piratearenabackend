@@ -57,11 +57,12 @@ app.post('/registration', (req, res) => {
 				if (err) throw err;
 				var values = [
 						[17, result.insertId],
-						[20, result.insertId],
-						[24, result.insertId],
-						[27, result.insertId],
 						[30, result.insertId],
-						[10, result.insertId]
+						[20, result.insertId],
+						[27, result.insertId],
+						[28, result.insertId],
+						[18, result.insertId],
+						[24, result.insertId]
 					];
 				dbConnection.query('INSERT INTO CharacterToUser(characterId, userId) VALUES ?', [values], function (err, result) {
 					if (err) throw err;
