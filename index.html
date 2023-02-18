@@ -71,7 +71,13 @@
 
 <script type="text/javascript">
     document.getElementById("download").onclick = function () {
-		window.location.assign("https://drive.google.com/file/d/1kOCuvbsT_y1P3PalZXFLkm9PJKgC0DJG/view?usp=sharing");
+		var request = new XMLHttpRequest(); 
+		request.open('GET', '/gameLocation'); 
+		request.send();
+		
+		request.onload = async function () {
+			window.location.assign(this.response);
+		}
 	};
 </script>
 

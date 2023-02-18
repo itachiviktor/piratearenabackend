@@ -85,6 +85,14 @@ app.get('/test', (req, res) => {
 	res.send('<html><head>server Response</head><body><h1> This page was render direcly from the server <p>Hello there welcome to my website</p></h1></body></html>')
 })
 
+app.get('/gameLocation', (req, res) => {
+	dbConnection.query('SELECT * FROM ParameterStore ps where ps.name=?', ['gameLocation'], function (err, result) {
+		if (err) throw err;
+		res.status(200);
+		res.send(result[0].paramValue);
+	});
+})
+
 
 app.get('/', (req, res) => {
 	res.sendFile(__dirname + "/index.html")
