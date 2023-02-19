@@ -9,14 +9,8 @@ const PORT = process.env.PORT || 5000
     //initialize a simple http server
 const server = http.createServer(app);
 
-
-
-
-
-var webSocketServer = new (require('ws')).Server({server}),
+var webSocketServer = new (require('ws')).Server({ noServer: true }),
     webSockets = {} // userID: webSocket
-    
-
 
 // CONNECT /:userID
 // wscat -c ws://localhost:5000/1
@@ -146,4 +140,10 @@ app.get('/', (req, res) => {
 
 
 server.listen(PORT, () => console.log(`Listening on ${ PORT }`))
+
+server.on('upgrade', (request, socket, head) => {
+  webSocketServer.handleUpgrade(request, socket, head, socket => {
+    webSocketServer.emit('connection', socket, request);
+  });
+});
 
