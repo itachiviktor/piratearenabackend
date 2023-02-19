@@ -5,6 +5,41 @@ const uuid = require('uuid');
 const path = require('path');
 const PORT = process.env.PORT || 5000  
 
+var webSocketServer = new (require('ws')).Server({port: 5001}),
+    webSockets = {} // userID: webSocket
+
+// CONNECT /:userID
+// wscat -c ws://localhost:5000/1
+webSocketServer.on('connection', function (webSocket, request) {
+  var userID = JSON.stringify(request.url).replace('/', '');
+  webSockets[userID] = webSocket;
+  console.log('connected: ' + userID + ' in ' + Object.getOwnPropertyNames(webSockets));
+
+  // Forward Message
+  //
+  // Receive               Example
+  // [toUserID, text]      [2, "Hello, World!"]
+  //
+  // Send                  Example
+  // [fromUserID, text]    [1, "Hello, World!"]
+  webSocket.on('message', function(message) {
+    console.log('received from ' + userID + ': ' + message)
+    //var messageArray = JSON.parse(message)
+    var toUserWebSocket = webSockets[0];
+    if (toUserWebSocket) {
+      //console.log('sent to ' + messageArray[0] + ': ' + JSON.stringify(messageArray))
+      //messageArray[0] = userID
+      //toUserWebSocket.send(JSON.stringify(messageArray));
+      toUserWebSocket.send(message);
+    }
+  })
+
+  webSocket.on('close', function () {
+    delete webSockets[userID]
+    console.log('deleted: ' + userID)
+  })
+})
+
 var dbConnection = mysql.createPool({
   host: "db4free.net",
   user: "piratearena1993",
