@@ -3,10 +3,20 @@ const app = express()
 const mysql = require('mysql');
 const uuid = require('uuid');
 const path = require('path');
+const http = require('http');
 const PORT = process.env.PORT || 5000  
 
-var webSocketServer = new (require('ws')).Server({port: 5001}),
+    //initialize a simple http server
+const server = http.createServer(app);
+
+
+
+
+
+var webSocketServer = new (require('ws')).Server({server}),
     webSockets = {} // userID: webSocket
+    
+
 
 // CONNECT /:userID
 // wscat -c ws://localhost:5000/1
@@ -135,4 +145,5 @@ app.get('/', (req, res) => {
 })
 
 
-app.listen(PORT, () => console.log(`Listening on ${ PORT }`))
+server.listen(PORT, () => console.log(`Listening on ${ PORT }`))
+
