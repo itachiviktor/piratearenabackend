@@ -15,7 +15,7 @@ var webSocketServer = new (require('ws')).Server({ noServer: true }),
 // CONNECT /:userID
 // wscat -c ws://localhost:5000/1
 webSocketServer.on('connection', function (webSocket, request) {
-  var userID = JSON.stringify(request.url).replace('/', '');
+  var userID = request.url.substring(1);
   webSockets[userID] = webSocket;
   console.log('connected: ' + userID + ' in ' + Object.getOwnPropertyNames(webSockets));
 
@@ -27,14 +27,24 @@ webSocketServer.on('connection', function (webSocket, request) {
   // Send                  Example
   // [fromUserID, text]    [1, "Hello, World!"]
   webSocket.on('message', function(message) {
-    console.log('received from ' + userID + ': ' + message)
+    console.log('received from ' + userID + ': ' + JSON.stringify(message));
+    console.log('typeof ' + typeof message);
+    //Ez olyan logika, hogy az üzenetből vesszük ki most a címzettet, a címzett ? előtt szerepel -> user?ez egy üzi neked
+	
+	
+	let toUser = JSON.parse(message).toUserToken;
+	
     //var messageArray = JSON.parse(message)
-    var toUserWebSocket = webSockets[0];
+    var toUserWebSocket = webSockets[toUser];
+    console.log('id toUser: ' + toUser);
+    //console.log('websockets: ' + JSON.stringify(webSockets));
+    //console.log('towebsocket: ' + JSON.stringify(toUserWebSocket));
     if (toUserWebSocket) {
       //console.log('sent to ' + messageArray[0] + ': ' + JSON.stringify(messageArray))
       //messageArray[0] = userID
       //toUserWebSocket.send(JSON.stringify(messageArray));
-      toUserWebSocket.send(message);
+      console.log('send from: ' + userID + ' to ' + toUser + ' the message: ' + message)
+      toUserWebSocket.send(JSON.stringify(message));
     }
   })
 
@@ -138,6 +148,86 @@ app.get('/', (req, res) => {
 	res.sendFile(__dirname + "/index.html")
 })
 
+app.get('/dummy', (req, res) => {
+
+dbConnection.query('LOCK TABLES FindMatch WRITE', [], function (err, result) {
+		if (err) throw err;
+		console.log('Lockolt');
+		res.send('ok');
+	});
+
+	/*dbConnection.query('INSERT INTO FindMatch(token1, token2, gameMode) VALUES (?,?,?)', ['1', '2', '3'], function (err, result) {
+		if (err) throw err;
+		console.log('Lefutott');
+		res.send('ok');
+	});*/
+})
+
+app.post('/findEnemy', (req, res) => {
+    		dbConnection.query('SELECT * FROM FindMatch fm where fm.token1 is not null and fm.token2 is null LIMIT 1', function (err, result) {
+    			var token = req.body.token;
+    			console.log('befutott');
+    			console.log(result);
+    			
+    			if(result.length > 0) {
+    				var findMatchValue = result[0];
+    				var findMatchValueId = findMatchValue.id;
+	    			dbConnection.query('UPDATE FindMatch SET token2 = ? WHERE id = ?', [token, findMatchValueId], function (err, result) {
+		      			if (err) throw err;
+		      			console.log('Record inserted');
+				     	
+				      	// Vissza küldjük az enemy tokenjét
+				      	res.send(findMatchValue.token1);
+	    			});
+    			} else {
+    				dbConnection.query('INSERT INTO FindMatch(token1, gameMode) VALUES (?,?)', [token, '3'], function (err, result) {
+		      			if (err) throw err;
+		      			console.log('Record inserted');
+				     	
+				      	// -1 means still searching
+				      	res.send('-1')
+	    			});
+    			}
+    		});
+})
+
+/*app.post('/findEnemy', (req, res) => {
+	dbConnection.query('LOCK TABLES FindMatch WRITE', (error, results, fields) => {
+    		if (error) throw error;
+    		console.log('Table locked');
+    		dbConnection.query('SELECT * FROM FindMatch fm where fm.token1 is not null and fm.token2 is null LIMIT 1', function (err, result) {
+    			var token = req.body.token;
+    			console.log('befutott');
+    			console.log(result);
+    			
+    			if(result.length > 0) {
+    				var findMatchValue = result[0];
+    				var findMatchValueId = findMatchValue.id;
+	    			dbConnection.query('UPDATE FindMatch SET token2 = ? WHERE id = ?', [token, findMatchValueId], function (err, result) {
+		      			if (error) throw error;
+		      			console.log('Record inserted');
+				     	dbConnection.query('UNLOCK TABLES', (error, results, fields) => {
+						if (error) throw error;
+						console.log('Table unlocked');
+				      	});
+				      	// Vissza küldjük az enemy tokenjét
+				      	res.send(findMatchValue.token1);
+	    			});
+    			} else {
+    				dbConnection.query('INSERT INTO FindMatch(token1, gameMode) VALUES (?,?)', [token, '3'], function (err, result) {
+		      			if (error) throw error;
+		      			console.log('Record inserted');
+				     	dbConnection.query('UNLOCK TABLES', (error, results, fields) => {
+						if (error) throw error;
+						console.log('Table unlocked');
+				      	});
+				      	// -1 means still searching
+				      	res.send(-1)
+	    			});
+    			}
+    		});
+  	});
+})*/
 
 server.listen(PORT, () => console.log(`Listening on ${ PORT }`))
 
