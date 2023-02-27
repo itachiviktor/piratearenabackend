@@ -150,7 +150,7 @@ app.get('/', (req, res) => {
 
 app.get('/dummy', (req, res) => {
 
-dbConnection.query('LOCK TABLES FindMatch WRITE', [], function (err, result) {
+	dbConnection.query('LOCK TABLES FindMatch WRITE', [], function (err, result) {
 		if (err) throw err;
 		console.log('Lockolt');
 		res.send('ok');
@@ -163,29 +163,56 @@ dbConnection.query('LOCK TABLES FindMatch WRITE', [], function (err, result) {
 	});*/
 })
 
+app.post('/findUserDetailsByTokenForGame', (req, res) => {
+	var token = req.body.token;
+	dbConnection.query('SELECT * FROM UserEntity us WHERE us.token = ?', [token], function (err, result) {
+		if (err) throw err;
+		res.status(200);
+		res.json({
+			//ide usernaem és rank kell egyenlőre, csak olyat küldünk, ami a játékhoz kellhet
+			username : result.username
+		});
+	});
+}
+
 app.post('/findEnemy', (req, res) => {
     		dbConnection.query('SELECT * FROM FindMatch fm where fm.token1 is not null and fm.token2 is null LIMIT 1', function (err, result) {
     			var token = req.body.token;
+    			var character1 = req.body.character1;
+    			var character2 = req.body.character2;
+    			var character3 = req.body.character3;
     			console.log('befutott');
     			console.log(result);
     			
     			if(result.length > 0) {
     				var findMatchValue = result[0];
     				var findMatchValueId = findMatchValue.id;
-	    			dbConnection.query('UPDATE FindMatch SET token2 = ? WHERE id = ?', [token, findMatchValueId], function (err, result) {
+	    			dbConnection.query('UPDATE FindMatch SET token2 = ?, player2Character1 = ?, player2Character2 = ?, player2Character3 = ? WHERE id = ?', 
+	    			[token, character1, character2, character3, findMatchValueId], function (err, result) {
 		      			if (err) throw err;
 		      			console.log('Record inserted');
 				     	
 				      	// Vissza küldjük az enemy tokenjét
-				      	res.send(findMatchValue.token1);
+				      	//res.send(findMatchValue.token1);
+				      	res.json({
+				      		token1 : findMatchValue.token1,
+				      		player1Character1 : findMatchValue.player1Character1,
+				      		player1Character2 : findMatchValue.player1Character2,
+				      		player1Character3 : findMatchValue.player1Character3,
+				      		token2 : token,
+				      		player2Character1 : character1,
+				      		player2Character2 : character2,
+				      		player2Character3 : character3,
+				      	});
 	    			});
     			} else {
-    				dbConnection.query('INSERT INTO FindMatch(token1, gameMode) VALUES (?,?)', [token, '3'], function (err, result) {
+    				dbConnection.query('INSERT INTO FindMatch(token1, player1Character1, player1Character2, player1Character3, gameMode) VALUES (?,?,?,?,?)', 
+    				[token, character1, character2, character3, '3'], function (err, result) {
 		      			if (err) throw err;
 		      			console.log('Record inserted');
 				     	
 				      	// -1 means still searching
-				      	res.send('-1')
+				      	res.send('NOT_FOUND')
 	    			});
     			}
     		});
