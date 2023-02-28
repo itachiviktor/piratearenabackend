@@ -164,16 +164,23 @@ app.get('/dummy', (req, res) => {
 })
 
 app.post('/findUserDetailsByTokenForGame', (req, res) => {
+	console.log('findUserDetailsByTokenForGame befutott: ' + req.body.token);
 	var token = req.body.token;
 	dbConnection.query('SELECT * FROM UserEntity us WHERE us.token = ?', [token], function (err, result) {
 		if (err) throw err;
-		res.status(200);
-		res.json({
-			//ide usernaem és rank kell egyenlőre, csak olyat küldünk, ami a játékhoz kellhet
-			username : result.username
-		});
+		console.log('findUserDetailsByTokenForGame result: ' + result)
+		if(result.length > 0) {
+			res.status(200);
+			res.json({
+				//ide usernaem és rank kell egyenlőre, csak olyat küldünk, ami a játékhoz kellhet
+				username : result[0].username
+			});
+		} else {
+			res.status(400);
+		}
+		
 	});
-}
+});
 
 app.post('/findEnemy', (req, res) => {
     		dbConnection.query('SELECT * FROM FindMatch fm where fm.token1 is not null and fm.token2 is null LIMIT 1', function (err, result) {
