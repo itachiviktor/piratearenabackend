@@ -88,9 +88,9 @@ app.post('/login', (req, res) => {
 			dbConnection.query('UPDATE UserEntity SET token = ? WHERE username = ? AND password = ?', [generatedToken, req.body.username, req.body.password], function (err, result) {
 				if (err) throw err;
 				console.log(result.affectedRows + " record(s) updated");
+				res.status(200);
+				res.json({ token: generatedToken });
 			});
-			res.status(200);
-			res.json({ token: generatedToken });
 		}
 	});
 })
