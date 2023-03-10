@@ -131,6 +131,14 @@ app.post('/availableCharacters', (req, res) => {
 	});
 })
 
+app.post('/cancelFindEnemy', (req, res) => {
+	dbConnection.query('DELETE FROM FindMatch fm where fm.token1 = ? and fm.token2 is null', [req.body.token], function (err, result) {
+		if (err) throw err;
+		res.status(200);
+		res.json(result);
+	});
+})
+
 app.get('/test', (req, res) => {
 	res.send('<html><head>server Response</head><body><h1> This page was render direcly from the server <p>Hello there welcome to my website</p></h1></body></html>')
 })
