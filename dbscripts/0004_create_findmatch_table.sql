@@ -9,6 +9,8 @@ CREATE TABLE FindMatch (
     player2Character2 int,
     player2Character3 int,
     gameMode varchar(255),
+    winnerUserId int,
+    loserUserId int,
     PRIMARY KEY (ID)
 );
 

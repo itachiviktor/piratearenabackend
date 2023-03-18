@@ -11,6 +11,9 @@ const server = http.createServer(app);
 
 var webSocketServer = new (require('ws')).Server({ noServer: true }),
     webSockets = {} // userID: webSocket
+    
+const waitingForAckMap = new Map();
+const ackNotArrivedMap = new Map();
 
 // CONNECT /:userID
 // wscat -c ws://localhost:5000/1
@@ -28,23 +31,71 @@ webSocketServer.on('connection', function (webSocket, request) {
   // [fromUserID, text]    [1, "Hello, World!"]
   webSocket.on('message', function(message) {
     console.log('received from ' + userID + ': ' + JSON.stringify(message));
-    console.log('typeof ' + typeof message);
     //Ez olyan logika, hogy az üzenetből vesszük ki most a címzettet, a címzett ? előtt szerepel -> user?ez egy üzi neked
+    var parsedMessageToJson = JSON.parse(message);
+    if (parsedMessageToJson.webSocketMessageType == 'ACK') {
+    	console.log("ACK come from: " + userID);
+    	//Ez egy ack üzenet
+    	clearTimeout(waitingForAckMap.get(parsedMessageToJson.ackToken));
+    	clearTimeout(ackNotArrivedMap.get(parsedMessageToJson.ackToken));
+    	// Remove an item from the map by key
+	waitingForAckMap.delete(parsedMessageToJson.ackToken);
+	ackNotArrivedMap.delete(parsedMessageToJson.ackToken);
+    } else if(parsedMessageToJson.webSocketMessageType == 'FOUND_ENEMY') {
+    	let toUser = parsedMessageToJson.toUserToken;
+    	var toUserWebSocket = webSockets[toUser];
+    	if (toUserWebSocket) {
+    		toUserWebSocket.send(JSON.stringify(message));
+    	}
+    } else if(parsedMessageToJson.webSocketMessageType == 'SURRENDER') {
+    	let toUser = parsedMessageToJson.toUserToken;
+    	var toUserWebSocket = webSockets[toUser];
+    	if (toUserWebSocket) {
+    		toUserWebSocket.send(JSON.stringify(message));
+    	}
+    	//itt beállítani a győztest és a vesztest adatbázisban
+    	dbConnection.query('UPDATE FindMatch fm SET winnerUserId = (SELECT us.id FROM UserEntity us WHERE us.token = ?), loserUserId = (SELECT us.id FROM UserEntity us where us.token = ?) where fm.loserUserId is null and fm.winnerUserId is null and (fm.token1 = ? or fm.token1 = ?)', 
+	    	[parsedMessageToJson.toUserToken, parsedMessageToJson.loserToken, parsedMessageToJson.toUserToken, parsedMessageToJson.loserToken], function (err, result) {
+		if (err) throw err;
+	});
+    } else if(parsedMessageToJson.webSocketMessageType == 'GAME_CHANGE_TURN') {
+	let toUser = parsedMessageToJson.toUserToken;
+	let fromUserWebSocket = webSockets[userID];
+	let ackFromServerJson = {
+		webSocketMessageType : 'ACK_FROM_SERVER',
+		uuidOfAckMessage : parsedMessageToJson.uuid
+	};
 	
+	fromUserWebSocket.send(JSON.stringify(Buffer.from(JSON.stringify(ackFromServerJson), "utf-8")));
 	
-	let toUser = JSON.parse(message).toUserToken;
-	
-    //var messageArray = JSON.parse(message)
-    var toUserWebSocket = webSockets[toUser];
-    console.log('id toUser: ' + toUser);
-    //console.log('websockets: ' + JSON.stringify(webSockets));
-    //console.log('towebsocket: ' + JSON.stringify(toUserWebSocket));
-    if (toUserWebSocket) {
-      //console.log('sent to ' + messageArray[0] + ': ' + JSON.stringify(messageArray))
-      //messageArray[0] = userID
-      //toUserWebSocket.send(JSON.stringify(messageArray));
-      console.log('send from: ' + userID + ' to ' + toUser + ' the message: ' + message)
-      toUserWebSocket.send(JSON.stringify(message));
+	//var messageArray = JSON.parse(message)
+	    var toUserWebSocket = webSockets[toUser];
+	    console.log('id toUser: ' + toUser);
+	    //console.log('websockets: ' + JSON.stringify(webSockets));
+	    //console.log('towebsocket: ' + JSON.stringify(toUserWebSocket));
+	    if (toUserWebSocket) {
+	    	// Itt mindkét játékos ack timeoutjait töröljük, mert valakitől jött üzenet
+	    	waitingForAckMap.delete(toUser);
+		ackNotArrivedMap.delete(toUser);
+		waitingForAckMap.delete(userID);
+		ackNotArrivedMap.delete(userID);
+	      	//console.log('sent to ' + messageArray[0] + ': ' + JSON.stringify(messageArray))
+	      	//messageArray[0] = userID
+	      	//toUserWebSocket.send(JSON.stringify(messageArray));
+	      	console.log('send from: ' + userID + ' to ' + toUser + ' the message: ' + message)
+	      	toUserWebSocket.send(JSON.stringify(message));
+	      
+	      	// Set a timeout to check if the message was acknowledged by the client
+		const timeoutId = setTimeout(() => {
+		    console.log('Send websocket message again to: ' + toUser);
+		    toUserWebSocket.send(JSON.stringify(message));
+		    const ackNotTimeoutId = setTimeout(() => {
+		       console.log('End of the game, other playerwins');
+		    }, 20000);
+		    ackNotArrivedMap.set(toUser, ackNotTimeoutId);
+		}, 20000);
+		waitingForAckMap.set(toUser, timeoutId);
+	    }	
     }
   })
 
@@ -232,44 +283,6 @@ app.post('/findEnemy', (req, res) => {
     			}
     		});
 })
-
-/*app.post('/findEnemy', (req, res) => {
-	dbConnection.query('LOCK TABLES FindMatch WRITE', (error, results, fields) => {
-    		if (error) throw error;
-    		console.log('Table locked');
-    		dbConnection.query('SELECT * FROM FindMatch fm where fm.token1 is not null and fm.token2 is null LIMIT 1', function (err, result) {
-    			var token = req.body.token;
-    			console.log('befutott');
-    			console.log(result);
-    			
-    			if(result.length > 0) {
-    				var findMatchValue = result[0];
-    				var findMatchValueId = findMatchValue.id;
-	    			dbConnection.query('UPDATE FindMatch SET token2 = ? WHERE id = ?', [token, findMatchValueId], function (err, result) {
-		      			if (error) throw error;
-		      			console.log('Record inserted');
-				     	dbConnection.query('UNLOCK TABLES', (error, results, fields) => {
-						if (error) throw error;
-						console.log('Table unlocked');
-				      	});
-				      	// Vissza küldjük az enemy tokenjét
-				      	res.send(findMatchValue.token1);
-	    			});
-    			} else {
-    				dbConnection.query('INSERT INTO FindMatch(token1, gameMode) VALUES (?,?)', [token, '3'], function (err, result) {
-		      			if (error) throw error;
-		      			console.log('Record inserted');
-				     	dbConnection.query('UNLOCK TABLES', (error, results, fields) => {
-						if (error) throw error;
-						console.log('Table unlocked');
-				      	});
-				      	// -1 means still searching
-				      	res.send(-1)
-	    			});
-    			}
-    		});
-  	});
-})*/
 
 server.listen(PORT, () => console.log(`Listening on ${ PORT }`))
 
