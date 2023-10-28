@@ -194,6 +194,24 @@ app.get('/test', (req, res) => {
 	res.send('<html><head>server Response</head><body><h1> This page was render direcly from the server <p>Hello there welcome to my website</p></h1></body></html>')
 })
 
+app.post('/userDetails', (req, res) => {
+	dbConnection.query('SELECT * FROM UserEntity ue WHERE ue.username = ?', [req.body.username], function (err, result) {
+		if (err) throw err;
+		if(result.length > 0) {
+			res.status(200);
+			res.json({
+				username : result[0].username,
+				wins: result[0].wins,
+				loses: result[0].loses,
+				xp: result[0].xp,
+				streak: result[0].streak
+			});
+		} else {
+			res.status(400);
+		}
+	});
+})
+
 app.get('/gameLocation', (req, res) => {
 	dbConnection.query('SELECT * FROM ParameterStore ps where ps.name=?', ['gameLocation'], function (err, result) {
 		if (err) throw err;
