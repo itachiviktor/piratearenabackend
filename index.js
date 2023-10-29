@@ -212,6 +212,56 @@ app.post('/userDetails', (req, res) => {
 	});
 })
 
+app.post('/writeMatchResult', (req, res) => {
+	dbConnection.query('SELECT * FROM UserEntity ue WHERE ue.username = ?', [req.body.winnerUsername], function (err, result) {
+		if (err) throw err;
+		if(result.length > 0) {
+			let winner = result[0];
+			let wins = winner.wins + 1;
+			let streak = winner.streak;
+			if (streak < 0) {
+				streak = 1;
+			} else {
+				streak = streak + 1;
+			}
+			let xp = winner.xp + 100;
+			dbConnection.query('UPDATE UserEntity SET wins = ?, streak = ?, xp = ? WHERE username = ?', 
+						[wins, streak, xp, req.body.winnerUsername], function (err, result) {
+				if (err) throw err;
+				console.log(result.affectedRows + " record(s) updated win user");
+			});
+		} else {
+			res.status(400);
+		}
+	});
+	dbConnection.query('SELECT * FROM UserEntity ue WHERE ue.username = ?', [req.body.loserUsername], function (err, result) {
+		if (err) throw err;
+		if(result.length > 0) {
+			let looser = result[0];
+			let loses = looser.loses + 1;
+			let streak = looser.streak;
+			if (streak > 0) {
+				streak = -1;
+			} else {
+				streak = streak - 1;
+			}
+			let xp = looser.xp - 50;
+			if(xp < 0) {
+				xp = 0;
+			}
+			dbConnection.query('UPDATE UserEntity SET loses = ?, streak = ?, xp = ? WHERE username = ?', 
+						[loses, streak, xp, req.body.loserUsername], function (err, result) {
+				if (err) throw err;
+				console.log(result.affectedRows + " record(s) updated lose user");
+			});
+		} else {
+			res.status(400);
+		}
+	});
+	res.status(200);
+	res.send("ok");
+})
+
 app.get('/gameLocation', (req, res) => {
 	dbConnection.query('SELECT * FROM ParameterStore ps where ps.name=?', ['gameLocation'], function (err, result) {
 		if (err) throw err;
