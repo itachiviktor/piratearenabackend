@@ -270,24 +270,8 @@ app.get('/gameLocation', (req, res) => {
 	});
 })
 
-
 app.get('/', (req, res) => {
 	res.sendFile(__dirname + "/index.html")
-})
-
-app.get('/dummy', (req, res) => {
-
-	dbConnection.query('LOCK TABLES FindMatch WRITE', [], function (err, result) {
-		if (err) throw err;
-		console.log('Lockolt');
-		res.send('ok');
-	});
-
-	/*dbConnection.query('INSERT INTO FindMatch(token1, token2, gameMode) VALUES (?,?,?)', ['1', '2', '3'], function (err, result) {
-		if (err) throw err;
-		console.log('Lefutott');
-		res.send('ok');
-	});*/
 })
 
 app.post('/findUserDetailsByTokenForGame', (req, res) => {
@@ -310,47 +294,154 @@ app.post('/findUserDetailsByTokenForGame', (req, res) => {
 });
 
 app.post('/findEnemy', (req, res) => {
-    		dbConnection.query('SELECT * FROM FindMatch fm where fm.token1 is not null and fm.token2 is null LIMIT 1', function (err, result) {
-    			var token = req.body.token;
-    			var character1 = req.body.character1;
-    			var character2 = req.body.character2;
-    			var character3 = req.body.character3;
-    			console.log('befutott');
-    			console.log(result);
-    			
-    			if(result.length > 0) {
-    				var findMatchValue = result[0];
-    				var findMatchValueId = findMatchValue.id;
-	    			dbConnection.query('UPDATE FindMatch SET token2 = ?, player2Character1 = ?, player2Character2 = ?, player2Character3 = ? WHERE id = ?', 
-	    			[token, character1, character2, character3, findMatchValueId], function (err, result) {
-		      			if (err) throw err;
-		      			console.log('Record inserted');
-				     	
-				      	// Vissza küldjük az enemy tokenjét
-				      	//res.send(findMatchValue.token1);
-				      	res.json({
-				      		token1 : findMatchValue.token1,
-				      		player1Character1 : findMatchValue.player1Character1,
-				      		player1Character2 : findMatchValue.player1Character2,
-				      		player1Character3 : findMatchValue.player1Character3,
-				      		token2 : token,
-				      		player2Character1 : character1,
-				      		player2Character2 : character2,
-				      		player2Character3 : character3,
-				      	});
-	    			});
-    			} else {
-    				dbConnection.query('INSERT INTO FindMatch(token1, player1Character1, player1Character2, player1Character3, gameMode) VALUES (?,?,?,?,?)', 
-    				[token, character1, character2, character3, '3'], function (err, result) {
-		      			if (err) throw err;
-		      			console.log('Record inserted');
-				     	
-				      	// -1 means still searching
-				      	res.send('NOT_FOUND')
-	    			});
-    			}
-    		});
-})
+	console.log('Start find enemy!');
+	// Elkérünk a connection poolbol egy adatbázis connectiont
+	dbConnection.getConnection((getConnectionError, connection) => {
+	    if (getConnectionError) {
+			console.error('Error getting a connection from the pool:', getConnectionError);
+			res.status(500).send('An error occurred');
+			return;
+	    }
+
+		// Indítunk egy tranzakciót, és az izolációt a legszigorúbbra állítjauk(SERIALIZABLE), ez a tábla lockolás miatt kell.
+		// Fontos, hogy ez csak erre a tranzakcióra érvényes csak, semmi mást nem befolyásol
+	    connection.beginTransaction({ isolationLevel: 'SERIALIZABLE' }, (beginErr) => {
+	      	if (beginErr) {
+				console.error('Error starting transaction:', beginErr);
+				res.status(500).send('An error occurred');
+				connection.release();
+				return;
+	      	}
+
+			// Lock the table
+			connection.query('LOCK TABLES FindMatch WRITE', (lockErr) => {
+				if (lockErr) {
+					console.error('Error locking the table:', lockErr);
+						connection.rollback(() => {
+						console.log('Transaction rolled back');
+						es.status(500).send('An error occurred');
+						connection.release();
+					});
+					return;
+				}
+				
+				connection.query('SELECT * FROM FindMatch where token1 is not null and token2 is null LIMIT 1', function (err, result) {
+					if (err) throw err;
+					let token = req.body.token;
+					let character1 = req.body.character1;
+					let character2 = req.body.character2;
+					let character3 = req.body.character3;
+					console.log(result);
+					if(result.length > 0) {
+						let findMatchValue = result[0];
+						let findMatchValueId = findMatchValue.id;
+						connection.query('UPDATE FindMatch SET token2 = ?, player2Character1 = ?, player2Character2 = ?, player2Character3 = ? WHERE id = ?',
+						[token, character1, character2, character3, findMatchValueId], function (err, result) {
+							if (err) {
+								console.error('Error update the table:', err);
+							}
+							releaseConnectionAndReleaseTableLock(connection, function(){
+								// Vissza küldjük az enemy tokenjét
+								res.json({
+									token1 : findMatchValue.token1,
+									player1Character1 : findMatchValue.player1Character1,
+									player1Character2 : findMatchValue.player1Character2,
+									player1Character3 : findMatchValue.player1Character3,
+									token2 : token,
+									player2Character1 : character1,
+									player2Character2 : character2,
+									player2Character3 : character3,
+								});
+							});
+						});
+					} else {
+						connection.query('INSERT INTO FindMatch(token1, player1Character1, player1Character2, player1Character3, gameMode) VALUES (?,?,?,?,?)', 
+						[token, character1, character2, character3, '3'], function (err, result) {
+							if (err) {
+								console.error('Error update the table:', err);
+							}
+							releaseConnectionAndReleaseTableLock(connection, function(){
+								res.send('NOT_FOUND');
+							});
+						});
+					}
+				});
+			});
+		});
+	});
+});
+
+app.post('/cancelFindEnemy', (req, res) => {
+	// Elkérünk a connection poolbol egy adatbázis connectiont
+	dbConnection.getConnection((getConnectionError, connection) => {
+	    if (getConnectionError) {
+			console.error('Error getting a connection from the pool:', getConnectionError);
+			res.status(500).send('An error occurred');
+			return;
+	    }
+
+		// Indítunk egy tranzakciót, és az izolációt a legszigorúbbra állítjauk(SERIALIZABLE), ez a tábla lockolás miatt kell.
+		// Fontos, hogy ez csak erre a tranzakcióra érvényes csak, semmi mást nem befolyásol
+	    connection.beginTransaction({ isolationLevel: 'SERIALIZABLE' }, (beginErr) => {
+	      	if (beginErr) {
+				console.error('Error starting transaction:', beginErr);
+				res.status(500).send('An error occurred');
+				connection.release();
+				return;
+	      	}
+
+			// Lock the table
+			connection.query('LOCK TABLES FindMatch WRITE', (lockErr) => {
+				if (lockErr) {
+					console.error('Error locking the table:', lockErr);
+						connection.rollback(() => {
+						console.log('Transaction rolled back');
+						es.status(500).send('An error occurred');
+						connection.release();
+					});
+					return;
+				}
+				
+				connection.query('DELETE FROM FindMatch where token1 = ? and token2 is null', [req.body.token], function (err, result) {
+					if (err) throw err;
+					releaseConnectionAndReleaseTableLock(connection, function(){
+						res.send('CANCELED');
+					});
+				});
+			});
+		});
+	});
+});
+
+/**
+ * A connection az egy adatbázis connection, a poolból
+ * A callback pedig egy funkcion, amit mindennek a végén végrehajt a kód, vélhetően mindig valami response küldés a kliens felé
+ */
+function releaseConnectionAndReleaseTableLock(connection, callback) {
+	console.log('Start to release connection and table lock!');
+
+	// Unlock the table
+	connection.query('UNLOCK TABLES', (unlockErr) => {
+		if (unlockErr) {
+			console.error('Error unlocking the table:', unlockErr);
+		}
+
+		connection.commit((commitErr) => {
+			if (commitErr) {
+				console.error('Error committing transaction:', commitErr);
+				connection.rollback(() => {
+					console.log('Transaction rolled back');
+					res.status(500).send('An error occurred');
+				});
+			} else {
+				console.log('Transaction committed');
+				callback();
+			}
+
+			connection.release();
+		});
+	});
+}
 
 server.listen(PORT, () => console.log(`Listening on ${ PORT }`))
 
