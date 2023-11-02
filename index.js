@@ -128,20 +128,16 @@ app.use(express.json())
 app.use(express.static('public'));
   
 app.post('/login', (req, res) => {
+	console.log('Login: ' + req.body.username);
 	dbConnection.query('SELECT * FROM UserEntity us WHERE us.username = ? AND us.password = ?', [req.body.username, req.body.password], function (err, result) {
 		if (err) throw err;
-		//console.log("Result: " + JSON.stringify(result));
 		if(result.length === 0) {
 			res.status(401);
 			res.send("Auth error")
 		} else {
-			generatedToken = uuid.v4();
-			dbConnection.query('UPDATE UserEntity SET token = ? WHERE username = ? AND password = ?', [generatedToken, req.body.username, req.body.password], function (err, result) {
-				if (err) throw err;
-				console.log(result.affectedRows + " record(s) updated");
-				res.status(200);
-				res.json({ token: generatedToken });
-			});
+			console.log('User ' + req.body.username + ' get back token: ' + result[0].token);
+			res.status(200);
+			res.json({ token: result[0].token });
 		}
 	});
 })
@@ -150,10 +146,11 @@ app.post('/registration', (req, res) => {
 	dbConnection.query('SELECT * FROM UserEntity us WHERE us.username = ?', [req.body.username], function (err, result) {
 		if (err) throw err;
 		if(result.length > 0) {
+			console.log('Already existing username: ' + req.body.username);
 			res.status(400);
 			res.send("Already existing username")
 		} else {
-			dbConnection.query('INSERT INTO UserEntity(username, password, token) VALUES (?,?,null)', [req.body.username, req.body.password], function (err, result) {
+			dbConnection.query('INSERT INTO UserEntity(username, password, token) VALUES (?,?,?)', [req.body.username, req.body.password, uuid.v4()], function (err, result) {
 				if (err) throw err;
 				var values = [
 						[17, result.insertId],
@@ -166,6 +163,7 @@ app.post('/registration', (req, res) => {
 					];
 				dbConnection.query('INSERT INTO CharacterToUser(characterId, userId) VALUES ?', [values], function (err, result) {
 					if (err) throw err;
+					console.log('User has been created wiht username: ' + req.body.username);
 				});
 			});
 			res.status(200);
