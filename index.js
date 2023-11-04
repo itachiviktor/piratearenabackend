@@ -210,6 +210,41 @@ app.post('/userDetails', (req, res) => {
 	});
 })
 
+app.post('/saveSelectedCharacters', (req, res) => {
+	dbConnection.query('SELECT * FROM SelectedCharacters WHERE userToken = ?', [req.body.token], function (err, result) {
+		if (err) throw err;
+		if(result.length > 0) {
+			dbConnection.query('UPDATE SelectedCharacters SET character1 = ?, character2 = ?, character3 = ? WHERE userToken = ?', 
+			[req.body.character1, req.body.character2, req.body.character3, req.body.token], function (err, result) {
+				if (err) throw err;
+				res.status(200);
+			});
+		} else {
+			dbConnection.query('INSERT INTO SelectedCharacters(character1, character2, character3, userToken) VALUES (?,?,?,?)', 
+			[req.body.character1, req.body.character2, req.body.character3, req.body.token], function (err, result) {
+				if (err) throw err;
+				res.status(200);
+			});
+		}
+	});
+})
+
+app.post('/findSelectedCharacters', (req, res) => {
+	dbConnection.query('SELECT * FROM SelectedCharacters WHERE userToken = ?', [req.body.token], function (err, result) {
+		if (err) throw err;
+		if(result.length > 0) {
+			res.status(200);
+			res.json({
+				character1: result[0].character1,
+				character2: result[0].character2,
+				character3: result[0].character3
+			});
+		} else {
+			res.send('EMPTY');
+		}
+	});
+})
+
 app.post('/writeMatchResult', (req, res) => {
 	dbConnection.query('SELECT * FROM UserEntity ue WHERE ue.username = ?', [req.body.winnerUsername], function (err, result) {
 		if (err) throw err;
