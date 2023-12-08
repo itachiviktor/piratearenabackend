@@ -326,6 +326,36 @@ app.post('/findUserDetailsByTokenForGame', (req, res) => {
 	});
 });
 
+app.post('/uploadProfilePicture', (req, res) => {
+	console.log('uploadProfilePicture: ' + req.body.token);
+	let token = req.body.token;
+	let file = req.body.file;
+	const fileBuffer = Buffer.from(file);
+	dbConnection.query('UPDATE UserEntity SET profilePicture = ? WHERE token = ?', [fileBuffer, token], function (err, result) {
+		if (err) console.log(err);
+	});
+	res.status(200);
+	res.send("ok");
+});
+
+app.post('/getProfilePicture', (req, res) => {
+	console.log('getProfilePicture: ' + req.body.token);
+	const token = req.body.token;
+	dbConnection.query('SELECT profilePicture FROM UserEntity us WHERE us.token = ?', [token], function (err, result) {
+		if (err) throw err;
+		console.log('findUserDetailsByTokenForGame result: ' + result);
+		res.status(200);
+		if(result.length > 0 && result[0].profilePicture) {
+			const byteArrayOfProfilePicture = Array.from(result[0].profilePicture);
+			res.json({
+				file : byteArrayOfProfilePicture
+			});
+		} else {
+			res.send('EMPTY');
+		}
+	});
+});
+
 app.post('/findEnemy', (req, res) => {
 	console.log('Start find enemy!');
 	// Elkérünk a connection poolbol egy adatbázis connectiont
