@@ -356,6 +356,20 @@ app.post('/getProfilePicture', (req, res) => {
 	});
 });
 
+app.post('/getClientVersion', (req, res) => {
+	dbConnection.query('SELECT paramValue FROM AppParameter WHERE paramName = ?', ['clientVersion'], function (err, result) {
+		if (err) throw err;
+		res.status(200);
+		if(result.length > 0 && result[0].paramValue) {
+			res.json({
+				clientVersion : result[0].paramValue
+			});
+		} else {
+			res.send('EMPTY');
+		}
+	});
+});
+
 app.post('/findEnemy', (req, res) => {
 	console.log('Start find enemy!');
 	// Elkérünk a connection poolbol egy adatbázis connectiont
@@ -388,46 +402,50 @@ app.post('/findEnemy', (req, res) => {
 					return;
 				}
 				
-				connection.query('SELECT * FROM FindMatch where token1 is not null and token2 is null LIMIT 1', function (err, result) {
+				//először kitörljük a beragadt kereséseinket, ha van olyan, hogy esetleg magunkat kapnánk
+				connection.query('DELETE FROM FindMatch where token1 = ? and token2 is null', [req.body.token], function (err, result) {
 					if (err) throw err;
-					let token = req.body.token;
-					let character1 = req.body.character1;
-					let character2 = req.body.character2;
-					let character3 = req.body.character3;
-					console.log(result);
-					if(result.length > 0) {
-						let findMatchValue = result[0];
-						let findMatchValueId = findMatchValue.id;
-						connection.query('UPDATE FindMatch SET token2 = ?, player2Character1 = ?, player2Character2 = ?, player2Character3 = ? WHERE id = ?',
-						[token, character1, character2, character3, findMatchValueId], function (err, result) {
-							if (err) {
-								console.error('Error update the table:', err);
-							}
-							releaseConnectionAndReleaseTableLock(connection, function(){
-								// Vissza küldjük az enemy tokenjét
-								res.json({
-									token1 : findMatchValue.token1,
-									player1Character1 : findMatchValue.player1Character1,
-									player1Character2 : findMatchValue.player1Character2,
-									player1Character3 : findMatchValue.player1Character3,
-									token2 : token,
-									player2Character1 : character1,
-									player2Character2 : character2,
-									player2Character3 : character3,
+					connection.query('SELECT * FROM FindMatch where token1 is not null and token2 is null and token1 <> ? and clientVersion = ? LIMIT 1', [req.body.token, req.body.clientVersion], function (err, result) {
+						if (err) throw err;
+						let token = req.body.token;
+						let character1 = req.body.character1;
+						let character2 = req.body.character2;
+						let character3 = req.body.character3;
+						console.log(result);
+						if(result.length > 0) {
+							let findMatchValue = result[0];
+							let findMatchValueId = findMatchValue.id;
+							connection.query('UPDATE FindMatch SET token2 = ?, player2Character1 = ?, player2Character2 = ?, player2Character3 = ? WHERE id = ?',
+							[token, character1, character2, character3, findMatchValueId], function (err, result) {
+								if (err) {
+									console.error('Error update the table:', err);
+								}
+								releaseConnectionAndReleaseTableLock(connection, function(){
+									// Vissza küldjük az enemy tokenjét
+									res.json({
+										token1 : findMatchValue.token1,
+										player1Character1 : findMatchValue.player1Character1,
+										player1Character2 : findMatchValue.player1Character2,
+										player1Character3 : findMatchValue.player1Character3,
+										token2 : token,
+										player2Character1 : character1,
+										player2Character2 : character2,
+										player2Character3 : character3,
+									});
 								});
 							});
-						});
-					} else {
-						connection.query('INSERT INTO FindMatch(token1, player1Character1, player1Character2, player1Character3, gameMode) VALUES (?,?,?,?,?)', 
-						[token, character1, character2, character3, '3'], function (err, result) {
-							if (err) {
-								console.error('Error update the table:', err);
-							}
-							releaseConnectionAndReleaseTableLock(connection, function(){
-								res.send('NOT_FOUND');
+						} else {
+							connection.query('INSERT INTO FindMatch(token1, player1Character1, player1Character2, player1Character3, gameMode, clientVersion) VALUES (?,?,?,?,?,?)', 
+							[token, character1, character2, character3, '3', req.body.clientVersion], function (err, result) {
+								if (err) {
+									console.error('Error update the table:', err);
+								}
+								releaseConnectionAndReleaseTableLock(connection, function(){
+									res.send('NOT_FOUND');
+								});
 							});
-						});
-					}
+						}
+					});
 				});
 			});
 		});
