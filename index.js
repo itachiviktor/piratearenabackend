@@ -403,9 +403,14 @@ app.post('/findEnemy', (req, res) => {
 				}
 				
 				//először kitörljük a beragadt kereséseinket, ha van olyan, hogy esetleg magunkat kapnánk
+				/**
+				 * searcherName -> aki keres (csak akkor nem null, ha private game)
+				 * searchEnemyName -> akit keres (csak akkor nem null, ha private game)
+				 */
 				connection.query('DELETE FROM FindMatch where token1 = ? and token2 is null', [req.body.token], function (err, result) {
 					if (err) throw err;
-					connection.query('SELECT * FROM FindMatch where token1 is not null and token2 is null and token1 <> ? and clientVersion = ? LIMIT 1', [req.body.token, req.body.clientVersion], function (err, result) {
+					connection.query('SELECT * FROM FindMatch where token1 is not null and token2 is null and token1 <> ? and clientVersion = ? and gameMode = ? and ((gameMode = 4 and searchEnemyName = ? and searcherName = ?) or (gameMode <> 4 and searchEnemyName is NULL and searcherName is NULL)) LIMIT 1', 
+					[req.body.token, req.body.clientVersion, req.body.gameMode, req.body.searcherName, req.body.searchEnemyName], function (err, result) {
 						if (err) throw err;
 						let token = req.body.token;
 						let character1 = req.body.character1;
@@ -435,8 +440,8 @@ app.post('/findEnemy', (req, res) => {
 								});
 							});
 						} else {
-							connection.query('INSERT INTO FindMatch(token1, player1Character1, player1Character2, player1Character3, gameMode, clientVersion) VALUES (?,?,?,?,?,?)', 
-							[token, character1, character2, character3, '3', req.body.clientVersion], function (err, result) {
+							connection.query('INSERT INTO FindMatch(token1, player1Character1, player1Character2, player1Character3, gameMode, clientVersion, searchEnemyName, searcherName) VALUES (?,?,?,?,?,?,?,?)', 
+							[token, character1, character2, character3, req.body.gameMode, req.body.clientVersion, req.body.searchEnemyName, req.body.searcherName], function (err, result) {
 								if (err) {
 									console.error('Error update the table:', err);
 								}
